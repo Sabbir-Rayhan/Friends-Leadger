@@ -1,7 +1,15 @@
+import { localeOf, type Lang } from "@/i18n";
+
 /** All math is done in paisa (integers) to avoid floating-point errors. */
 
+const BN_DIGITS = "০১২৩৪৫৬৭৮৯";
+
+/** Accepts "500", "৫০০", "1,250.50", "১২৫০.৫০" -> paisa. */
 export function parseAmount(input: string): number | null {
-  const v = input.trim().replace(/,/g, "");
+  const v = input
+    .trim()
+    .replace(/[০-৯]/g, (d) => String(BN_DIGITS.indexOf(d)))
+    .replace(/[,\s]/g, "");
   if (!/^\d{1,9}(\.\d{1,2})?$/.test(v)) return null;
   const paisa = Math.round(parseFloat(v) * 100);
   return paisa > 0 ? paisa : null;
@@ -17,21 +25,21 @@ export function paisaToNumeric(p: number): string {
   return (p / 100).toFixed(2);
 }
 
-export function formatTaka(p: number): string {
+export function formatTaka(p: number, lang: Lang): string {
   const hasFraction = p % 100 !== 0;
   return (
     "৳" +
-    (p / 100).toLocaleString("en-US", {
+    (p / 100).toLocaleString(localeOf(lang), {
       minimumFractionDigits: hasFraction ? 2 : 0,
       maximumFractionDigits: 2,
     })
   );
 }
 
-export function formatDate(d: string): string {
-  return new Date(d + "T00:00:00Z").toLocaleDateString("en-GB", {
+export function formatDate(d: string, lang: Lang): string {
+  return new Date(d + "T00:00:00Z").toLocaleDateString(localeOf(lang), {
     day: "numeric",
-    month: "short",
+    month: lang === "bn" ? "long" : "short",
     year: "numeric",
     timeZone: "UTC",
   });

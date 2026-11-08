@@ -1,9 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import { useI18n } from "@/i18n/client";
 
-export function CopyButton({ text, label = "Copy" }: { text: string; label?: string }) {
+export function CopyButton({ text, label }: { text: string; label: string }) {
   const [copied, setCopied] = useState(false);
+  const { t } = useI18n();
   return (
     <button
       type="button"
@@ -12,9 +14,9 @@ export function CopyButton({ text, label = "Copy" }: { text: string; label?: str
         setCopied(true);
         setTimeout(() => setCopied(false), 1500);
       }}
-      className="rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-700 hover:bg-slate-50"
+      className="rounded-md border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
     >
-      {copied ? "Copied!" : label}
+      {copied ? t("copied") : label}
     </button>
   );
 }

@@ -4,9 +4,9 @@ import { randomInt, randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { z } from "zod";
 import { db } from "@/db";
 import { circleMembers, circles } from "@/db/schema";
+import { getI18n } from "@/i18n/server";
 import { requireUser } from "@/lib/session";
 import type { ActionState } from "@/lib/types";
 
@@ -20,19 +20,14 @@ export async function createCircle(
   formData: FormData
 ): Promise<ActionState> {
   const user = await requireUser();
-  const parsed = z
-    .object({ name: z.string().trim().min(1, "Give your circle a name").max(60) })
-    .safeParse({ name: formData.get("name") });
-  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  const { t } = await getI18n();
+  const name = String(formData.get("name") ?? "").trim();
+  if (!name) return { error: t("e_groupName") };
+  if (name.length > 60) return { error: t("e_groupNameLong") };
 
   const id = randomUUID();
   await db.batch([
-    db.insert(circles).values({
-      id,
-      name: parsed.data.name,
-      inviteCode: makeInviteCode(),
-      createdBy: user.id,
-    }),
+    db.insert(circles).values({ id, name, inviteCode: makeInviteCode(), createdBy: user.id }),
     db.insert(circleMembers).values({ circleId: id, userId: user.id, role: "admin" }),
   ]);
   revalidatePath("/", "layout");
@@ -42,13 +37,13 @@ export async function createCircle(
 async function addMemberByCode(
   code: string,
   userId: string
-): Promise<{ error: string } | { circleId: string }> {
+): Promise<{ notFound: true } | { circleId: string }> {
   const [circle] = await db
     .select({ id: circles.id })
     .from(circles)
     .where(eq(circles.inviteCode, code.trim().toUpperCase()))
     .limit(1);
-  if (!circle) return { error: "That invite code doesn't match any circle." };
+  if (!circle) return { notFound: true };
   await db
     .insert(circleMembers)
     .values({ circleId: circle.id, userId })
@@ -62,10 +57,11 @@ export async function joinCircleWithCode(
   formData: FormData
 ): Promise<ActionState> {
   const user = await requireUser();
+  const { t } = await getI18n();
   const code = String(formData.get("code") ?? "");
-  if (code.trim().length < 4) return { error: "Enter the invite code." };
+  if (code.trim().length < 4) return { error: t("e_codeMissing") };
   const result = await addMemberByCode(code, user.id);
-  if ("error" in result) return result;
+  if ("notFound" in result) return { error: t("e_codeInvalid") };
   revalidatePath("/", "layout");
   redirect(`/circles/${result.circleId}`);
 }
@@ -73,8 +69,9 @@ export async function joinCircleWithCode(
 /** Used by the "Join" button on /join/[code] */
 export async function joinCircleByLink(code: string): Promise<void> {
   const user = await requireUser();
+  const { t } = await getI18n();
   const result = await addMemberByCode(code, user.id);
-  if ("error" in result) throw new Error(result.error);
+  if ("notFound" in result) throw new Error(t("e_codeInvalid"));
   revalidatePath("/", "layout");
   redirect(`/circles/${result.circleId}`);
 }
